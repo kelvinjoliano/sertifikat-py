@@ -15,6 +15,7 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         if not base64_creds:
             raise ValueError("❌ Environment variable 'GOOGLE_CREDS_BASE64' tidak ditemukan.")
 
+        # Simpan kredensial dari base64 ke file
         with open("service_account_credentials.json", "wb") as f:
             f.write(base64.b64decode(base64_creds))
 
@@ -90,8 +91,11 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
         x = (page_width - text_width) / 2
         page.insert_text((x, y_pos), text, fontsize=fontsize, fontname="helv", color=color)
 
+    # Halaman 1
     page1.insert_text(koordinat["nomor"], nomor_sertifikat, fontsize=ukuran["nomor"], fontname="helv", color=(0, 0, 0))
     insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"], ukuran["nama_h1"], (0.0, 0.2, 0.8))
+
+    # Halaman 2
     page2.insert_text(koordinat["tanggal"], tanggal, fontsize=ukuran["tanggal"], fontname="helv", color=(0, 0, 0))
     page2.insert_text(koordinat["nama_h2"], nama_peserta, fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
 
@@ -102,7 +106,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     doc.save(output_path)
     doc.close()
 
-    # ✅ Upload otomatis
+    # ✅ Upload otomatis ke Google Drive
     upload_result = upload_to_drive(output_path, output_filename, folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
 
     return {
