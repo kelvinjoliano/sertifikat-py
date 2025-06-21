@@ -28,13 +28,19 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         file = service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id, webViewLink, webContentLink'
+            fields='id, webViewLink'
+        ).execute()
+
+        # Buat file bisa diakses publik
+        service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'},
+            fields='id'
         ).execute()
 
         return {
-            "file_id": file.get('id'),
-            "view_link": file.get('webViewLink'),
-            "download_link": file.get('webContentLink')
+            "file_id": file.get("id"),
+            "view_link": file.get("webViewLink")
         }
 
     except Exception as e:
@@ -147,4 +153,4 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
 
     print("📤 Upload ke Drive:", upload_result)
 
-    return output_path  # kamu juga bisa return upload_result jika ingin link-nya
+    return output_path
