@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from generator import generate_sertifikat
+from generator import generate_sertifikat, upload_to_drive
 import os
 
 app = FastAPI()
@@ -15,13 +15,29 @@ class SertifikatPayload(BaseModel):
 @app.post("/generate")
 async def generate(payload: SertifikatPayload):
     try:
-        generate_sertifikat(
+        # 1. Generate sertifikat PDF lokal
+        output_path = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
             tanggal=payload.tanggal,
             jenis_pelatihan=payload.jenis_pelatihan
         )
-        return {"status": "success", "message": "✅ Sertifikat berhasil dibuat"}
+
+        # 2. Upload ke Google Drive
+        upload_result = upload_to_drive(
+            local_file_path=output_path,
+            filename_drive=os.path.basename(output_path),
+            folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
+        )
+
+        # 3. Kirim respon ke client
+        return {
+            "status": "success",
+            "message": "✅ Sertifikat berhasil dibuat dan diupload ke Google Drive",
+            "drive_link": upload_result.get("view_link"),
+            "download_link": f"/download/{os.path.basename(output_path)}"
+        }
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

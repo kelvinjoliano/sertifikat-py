@@ -1,8 +1,48 @@
 import fitz  # PyMuPDF
 import os
 
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+# =================== UPLOAD TO GOOGLE DRIVE ===================
+
+def upload_to_drive(local_file_path, filename_drive, folder_id):
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SERVICE_ACCOUNT_FILE = 'service_account_credentials.json'
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+
+        service = build('drive', 'v3', credentials=credentials)
+
+        file_metadata = {
+            'name': filename_drive,
+            'parents': [folder_id]
+        }
+
+        media = MediaFileUpload(local_file_path, mimetype='application/pdf')
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+
+        return {
+            "file_id": file.get('id'),
+            "view_link": file.get('webViewLink'),
+            "download_link": file.get('webContentLink')
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+# =================== GENERATE PDF SERTIFIKAT ===================
+
 def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
-    # Mapping template dan koordinat
     jenis = jenis_pelatihan.upper()
 
     templates = {
@@ -33,24 +73,9 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     }
 
     ukurans = {
-        "WAH": {
-            "nomor": 20,
-            "nama_h1": 48,
-            "tanggal": 15,
-            "nama_h2": 16,
-        },
-        "BFA": {
-            "nomor": 20,
-            "nama_h1": 48,
-            "tanggal": 15,
-            "nama_h2": 16,
-        },
-        "BFF": {
-            "nomor": 20,
-            "nama_h1": 48,
-            "tanggal": 15,
-            "nama_h2": 16,
-        }
+        "WAH": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16},
+        "BFA": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16},
+        "BFF": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16},
     }
 
     if jenis not in templates:
@@ -67,14 +92,12 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     page1 = doc[0]
     page2 = doc[1]
 
-    # Fungsi bantu untuk center teks
     def insert_centered_text(page, text, y_pos, fontsize, color):
         page_width = page.rect.width
         text_width = fitz.get_text_length(text, fontname="helv", fontsize=fontsize)
         x = (page_width - text_width) / 2
         page.insert_text((x, y_pos), text, fontsize=fontsize, fontname="helv", color=color)
 
-    # Halaman 1
     page1.insert_text(
         koordinat["nomor"],
         nomor_sertifikat,
@@ -90,7 +113,6 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
         color=(0.0, 0.2, 0.8)
     )
 
-    # Halaman 2
     page2.insert_text(
         koordinat["tanggal"],
         tanggal,
@@ -106,21 +128,23 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
         color=(0, 0, 0)
     )
 
-    # Simpan hasil ke folder output
     if not os.path.exists("output"):
         os.makedirs("output")
-    output_path = f"output/{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
+
+    output_filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
+    output_path = f"output/{output_filename}"
     doc.save(output_path)
     doc.close()
 
     print(f"✅ Sertifikat berhasil dibuat: {output_path}")
 
-
-# Contoh pemanggilan (bisa diubah ke jenis lain)
-if __name__ == "__main__":
-    generate_sertifikat(
-        nama_peserta="Kelvin Surya Joliano",
-        nomor_sertifikat="PES/WAH/205/V/25",
-        tanggal="19-20 Mei 2023",
-        jenis_pelatihan="BFF"
+    # Upload ke Google Drive
+    upload_result = upload_to_drive(
+        local_file_path=output_path,
+        filename_drive=output_filename,
+        folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
     )
+
+    print("📤 Upload ke Drive:", upload_result)
+
+    return output_path  # kamu juga bisa return upload_result jika ingin link-nya
