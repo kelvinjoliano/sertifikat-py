@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from generator import generate_sertifikat
+import os
 
 app = FastAPI()
 
@@ -22,3 +24,15 @@ async def generate(payload: SertifikatPayload):
         return {"status": "success", "message": "✅ Sertifikat berhasil dibuat"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    file_path = f"output/{filename}"
+    if not os.path.exists(file_path):
+        return {"status": "error", "message": "❌ File tidak ditemukan"}
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/pdf'
+    )
