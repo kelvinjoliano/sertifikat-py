@@ -28,6 +28,55 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         file = service.files().create(
             body=file_metadata,
             media_body=media,
+            fields='id'
+        ).execute()
+
+        file_id = file.get('id')
+
+        # ➕ Set permission: anyone can view
+        service.permissions().create(
+            fileId=file_id,
+            body={
+                'type': 'anyone',
+                'role': 'reader'
+            }
+        ).execute()
+
+        # ✅ Ambil metadata ulang untuk dapatkan link
+        file = service.files().get(
+            fileId=file_id,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+
+        return {
+            "file_id": file.get('id'),
+            "view_link": file.get('webViewLink'),
+            "download_link": file.get('webContentLink')
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SERVICE_ACCOUNT_FILE = 'service_account_credentials.json'
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+
+        service = build('drive', 'v3', credentials=credentials)
+
+        file_metadata = {
+            'name': filename_drive,
+            'parents': [folder_id]
+        }
+
+        media = MediaFileUpload(local_file_path, mimetype='application/pdf')
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
             fields='id, webViewLink, webContentLink'
         ).execute()
 
