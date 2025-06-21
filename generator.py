@@ -33,6 +33,58 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
 
         file_id = file.get('id')
 
+        # 🛡️ Set permission agar publik bisa akses
+        service.permissions().create(
+            fileId=file_id,
+            body={
+                'type': 'anyone',
+                'role': 'reader'
+            }
+        ).execute()
+
+        # 🧠 Fetch metadata ulang untuk dapatkan link
+        file_info = service.files().get(
+            fileId=file_id,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+
+        print("🔍 Metadata file:", file_info)  # DEBUG: lihat isi response
+
+        return {
+            "file_id": file_info.get('id'),
+            "view_link": file_info.get('webViewLink'),
+            "download_link": file_info.get('webContentLink')
+        }
+
+    except Exception as e:
+        print("❌ Upload error:", str(e))  # DEBUG
+        return {"error": str(e)}
+
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SERVICE_ACCOUNT_FILE = 'service_account_credentials.json'
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+
+        service = build('drive', 'v3', credentials=credentials)
+
+        file_metadata = {
+            'name': filename_drive,
+            'parents': [folder_id]
+        }
+
+        media = MediaFileUpload(local_file_path, mimetype='application/pdf')
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+
+        file_id = file.get('id')
+
         # ➕ Set permission: anyone can view
         service.permissions().create(
             fileId=file_id,
