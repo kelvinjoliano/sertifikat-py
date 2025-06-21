@@ -1,5 +1,6 @@
 import fitz  # PyMuPDF
 import os
+import base64
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -8,6 +9,47 @@ from googleapiclient.http import MediaFileUpload
 # =================== UPLOAD TO GOOGLE DRIVE ===================
 
 def upload_to_drive(local_file_path, filename_drive, folder_id):
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+
+        # Cek dan buat file credentials dari Base64 ENV
+        base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
+        if not base64_creds:
+            raise ValueError("❌ Environment variable 'GOOGLE_CREDS_BASE64' tidak ditemukan.")
+
+        with open("service_account_credentials.json", "wb") as f:
+            f.write(base64.b64decode(base64_creds))
+
+        SERVICE_ACCOUNT_FILE = 'service_account_credentials.json'
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+
+        service = build('drive', 'v3', credentials=credentials)
+
+        file_metadata = {
+            'name': filename_drive,
+            'parents': [folder_id]
+        }
+
+        media = MediaFileUpload(local_file_path, mimetype='application/pdf')
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+
+        return {
+            "file_id": file.get('id'),
+            "view_link": file.get('webViewLink'),
+            "download_link": file.get('webContentLink')
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
     try:
         SCOPES = ['https://www.googleapis.com/auth/drive']
         SERVICE_ACCOUNT_FILE = 'service_account_credentials.json'
