@@ -8,6 +8,7 @@ import requests
 
 app = FastAPI()
 
+# ✅ CORS agar bisa diakses dari WordPress
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://petroenergisafety.com"],
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Payload dari WP
 class SertifikatPayload(BaseModel):
     id: int
     nama_peserta: str
@@ -43,20 +45,24 @@ async def generate(payload: SertifikatPayload):
 
         output_path = hasil["output_path"]
         upload_result = hasil["upload_result"]
-        file_id = upload_result.get("file_id")
 
-        if not file_id:
-            return {"status": "error", "message": "❌ Gagal upload ke Drive."}
+        print("📦 upload_result:", upload_result)  # 🔍 DEBUG
+
+        file_id = upload_result.get("file_id")
+        file_url = upload_result.get("view_link")  # ✅ Link ke Google Drive Viewer
+
+        if not file_id or not file_url:
+            return {"status": "error", "message": "❌ Gagal mendapatkan file_id atau file_url dari Drive."}
 
         download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
 
+        # ✅ Kirim ke AJAX WordPress
         post_data = {
-    'action': 'update_file_pdf',
-    'id': payload.id,
-    'file_pdf': download_link,
-    'file_url': upload_result.get("view_link")  # <- ini link ke Google Drive Viewer
-}
-
+            'action': 'update_file_pdf',
+            'id': payload.id,
+            'file_pdf': download_link,
+            'file_url': file_url
+        }
 
         wp_response = requests.post("https://petroenergisafety.com/wp-admin/admin-ajax.php", data=post_data)
         print("🔁 Response update_file_pdf:", wp_response.text)
@@ -64,7 +70,7 @@ async def generate(payload: SertifikatPayload):
         return {
             "status": "success",
             "message": "✅ Sertifikat berhasil dibuat & diupload.",
-            "drive_link": upload_result.get("view_link"),
+            "drive_link": file_url,
             "download_link": download_link,
             "filename": os.path.basename(output_path)
         }
