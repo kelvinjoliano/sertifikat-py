@@ -51,10 +51,12 @@ async def generate(payload: SertifikatPayload):
         download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
 
         post_data = {
-            'action': 'update_file_pdf',
-            'id': payload.id,
-            'file_pdf': download_link
-        }
+    'action': 'update_file_pdf',
+    'id': payload.id,
+    'file_pdf': download_link,
+    'file_url': upload_result.get("view_link")  # <- ini link ke Google Drive Viewer
+}
+
 
         wp_response = requests.post("https://petroenergisafety.com/wp-admin/admin-ajax.php", data=post_data)
         print("🔁 Response update_file_pdf:", wp_response.text)
