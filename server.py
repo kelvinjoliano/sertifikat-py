@@ -4,10 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from generator import generate_sertifikat, upload_to_drive
 import os
+import requests
 
 app = FastAPI()
 
-# Aktifkan CORS agar bisa menerima request dari WordPress
+# ✅ CORS agar bisa diakses dari WordPress
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://petroenergisafety.com"],
@@ -16,7 +17,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Payload dari WP
 class SertifikatPayload(BaseModel):
+    id: int  # 🆔 tambahkan ID peserta
     nama_peserta: str
     nomor_sertifikat: str
     tanggal: str
@@ -40,31 +43,45 @@ async def generate(payload: SertifikatPayload):
                 "message": f"❌ Jenis pelatihan '{jenis}' tidak didukung untuk pembuatan otomatis."
             }
 
-        # 1. Generate sertifikat PDF secara lokal
+        # 1️⃣ Generate PDF lokal
         output_path = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
             tanggal=payload.tanggal,
-            jenis_pelatihan=payload.jenis_pelatihan
+            jenis_pelatihan=jenis
         )
 
-        # 2. Upload ke Google Drive
+        # 2️⃣ Upload ke Google Drive
         upload_result = upload_to_drive(
             local_file_path=output_path,
             filename_drive=os.path.basename(output_path),
             folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
         )
 
-        # 3. Berikan respon ke frontend
-        return {
-            "status": "success",
-            "message": "✅ Sertifikat berhasil dibuat dan diupload ke Google Drive.",
-            "drive_link": upload_result.get("view_link"),
-            "download_link": upload_result.get("download_link"),  # 🔥 ini yang langsung bisa diunduh
-            "filename": os.path.basename(output_path)
+        file_id = upload_result.get("file_id")
+        if not file_id:
+            return {"status": "error", "message": "❌ Gagal mendapatkan file_id dari Google Drive."}
+
+        # 🔗 Link download langsung dari Google Drive
+        download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+        # 3️⃣ Kirim ke WordPress (update kolom file_pdf)
+        post_data = {
+            'action': 'update_file_pdf',
+            'id': payload.id,
+            'file_pdf': download_link
         }
 
+        wp_response = requests.post("https://petroenergisafety.com/wp-admin/admin-ajax.php", data=post_data)
+        print("🔁 Response update_file_pdf:", wp_response.text)
 
+        return {
+            "status": "success",
+            "message": "✅ Sertifikat berhasil dibuat dan diupload.",
+            "drive_link": upload_result.get("view_link"),
+            "download_link": download_link,
+            "filename": os.path.basename(output_path)
+        }
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
