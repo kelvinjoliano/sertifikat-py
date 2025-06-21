@@ -60,8 +60,11 @@ async def generate(payload: SertifikatPayload):
             "status": "success",
             "message": "✅ Sertifikat berhasil dibuat dan diupload ke Google Drive.",
             "drive_link": upload_result.get("view_link"),
-            "download_link": f"/download/{os.path.basename(output_path)}"
+            "download_link": upload_result.get("download_link"),  # 🔥 ini yang langsung bisa diunduh
+            "filename": os.path.basename(output_path)
         }
+
+
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
