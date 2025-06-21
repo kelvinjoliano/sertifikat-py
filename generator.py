@@ -328,13 +328,6 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
 
     print(f"✅ Sertifikat berhasil dibuat: {output_path}")
 
-    # Upload ke Google Drive
-    upload_result = upload_to_drive(
-        local_file_path=output_path,
-        filename_drive=output_filename,
-        folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
-    )
-
     print("📤 Upload ke Drive:", upload_result)
 
     return output_path
