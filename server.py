@@ -65,6 +65,8 @@ async def generate(payload: SertifikatPayload):
             'file_url': view_link  # <- untuk kolom WPDA
         }
 
+        print("📦 Data ke WordPress:", post_data)
+
         wp_response = requests.post("https://petroenergisafety.com/wp-admin/admin-ajax.php", data=post_data)
         print("🔁 Response update_file_pdf:", wp_response.text)
 
