@@ -2,13 +2,12 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from generator import generate_sertifikat, upload_to_drive
+from generator import generate_sertifikat
 import os
 import requests
 
 app = FastAPI()
 
-# ✅ CORS agar bisa diakses dari WordPress
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://petroenergisafety.com"],
@@ -17,9 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Payload dari WP
 class SertifikatPayload(BaseModel):
-    id: int  # 🆔 tambahkan ID peserta
+    id: int
     nama_peserta: str
     nomor_sertifikat: str
     tanggal: str
@@ -30,42 +28,28 @@ class SertifikatPayload(BaseModel):
 async def generate(payload: SertifikatPayload):
     try:
         if payload.status.lower() != "lulus":
-            return {
-                "status": "denied",
-                "message": "❌ Sertifikat hanya dibuat untuk peserta dengan status 'lulus'."
-            }
+            return {"status": "denied", "message": "❌ Sertifikat hanya untuk status 'lulus'."}
 
-        jenis_valid = ["BFA", "BFF", "WAH"]
         jenis = payload.jenis_pelatihan.upper()
-        if jenis not in jenis_valid:
-            return {
-                "status": "error",
-                "message": f"❌ Jenis pelatihan '{jenis}' tidak didukung untuk pembuatan otomatis."
-            }
+        if jenis not in ["BFA", "BFF", "WAH"]:
+            return {"status": "error", "message": f"❌ Jenis '{jenis}' tidak didukung."}
 
-        # 1️⃣ Generate PDF lokal
-        output_path = generate_sertifikat(
+        hasil = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
             tanggal=payload.tanggal,
             jenis_pelatihan=jenis
         )
 
-        # 2️⃣ Upload ke Google Drive
-        upload_result = upload_to_drive(
-            local_file_path=output_path,
-            filename_drive=os.path.basename(output_path),
-            folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
-        )
-
+        output_path = hasil["output_path"]
+        upload_result = hasil["upload_result"]
         file_id = upload_result.get("file_id")
-        if not file_id:
-            return {"status": "error", "message": "❌ Gagal mendapatkan file_id dari Google Drive."}
 
-        # 🔗 Link download langsung dari Google Drive
+        if not file_id:
+            return {"status": "error", "message": "❌ Gagal upload ke Drive."}
+
         download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-        # 3️⃣ Kirim ke WordPress (update kolom file_pdf)
         post_data = {
             'action': 'update_file_pdf',
             'id': payload.id,
@@ -77,7 +61,7 @@ async def generate(payload: SertifikatPayload):
 
         return {
             "status": "success",
-            "message": "✅ Sertifikat berhasil dibuat dan diupload.",
+            "message": "✅ Sertifikat berhasil dibuat & diupload.",
             "drive_link": upload_result.get("view_link"),
             "download_link": download_link,
             "filename": os.path.basename(output_path)
@@ -91,9 +75,4 @@ async def download_file(filename: str):
     file_path = f"output/{filename}"
     if not os.path.exists(file_path):
         return {"status": "error", "message": "❌ File tidak ditemukan."}
-    
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type='application/pdf'
-    )
+    return FileResponse(path=file_path, filename=filename, media_type='application/pdf')
