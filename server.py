@@ -1,99 +1,82 @@
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from generator import generate_sertifikat, upload_to_drive
 import os
-import requests
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google.oauth2 import service_account
+import fitz  # PyMuPDF
 
-app = FastAPI()
+SCOPES = ['https://www.googleapis.com/auth/drive']
+SERVICE_ACCOUNT_FILE = 'credentials.json'
 
-# ✅ CORS agar bisa diakses dari WordPress
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://petroenergisafety.com"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+TEMPLATE_PATHS = {
+    "WAH": "templates/WAH_template.pdf",
+    "BFA": "templates/BFA_template.pdf",
+    "BFF": "templates/BFF_template.pdf"
+}
 
-# ✅ Payload dari WP
-class SertifikatPayload(BaseModel):
-    id: int  # 🆔 tambahkan ID peserta
-    nama_peserta: str
-    nomor_sertifikat: str
-    tanggal: str
-    jenis_pelatihan: str
-    status: str
+OUTPUT_DIR = "output"
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
 
-@app.post("/generate")
-async def generate(payload: SertifikatPayload):
-    try:
-        if payload.status.lower() != "lulus":
-            return {
-                "status": "denied",
-                "message": "❌ Sertifikat hanya dibuat untuk peserta dengan status 'lulus'."
-            }
+def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
+    jenis = jenis_pelatihan.upper()
+    template_file = TEMPLATE_PATHS.get(jenis)
+    if not template_file or not os.path.exists(template_file):
+        raise Exception(f"Template untuk pelatihan '{jenis}' tidak ditemukan.")
 
-        jenis_valid = ["BFA", "BFF", "WAH"]
-        jenis = payload.jenis_pelatihan.upper()
-        if jenis not in jenis_valid:
-            return {
-                "status": "error",
-                "message": f"❌ Jenis pelatihan '{jenis}' tidak didukung untuk pembuatan otomatis."
-            }
+    doc = fitz.open(template_file)
 
-        # 1️⃣ Generate PDF lokal
-        output_path = generate_sertifikat(
-            nama_peserta=payload.nama_peserta,
-            nomor_sertifikat=payload.nomor_sertifikat,
-            tanggal=payload.tanggal,
-            jenis_pelatihan=jenis
-        )
+    # Halaman 1
+    page1 = doc[0]
+    page1.insert_text((210, 290), nama_peserta, fontsize=16, fontname="helv", fill=(0, 0, 0))
+    page1.insert_text((210, 330), nomor_sertifikat, fontsize=12, fontname="helv", fill=(0, 0, 0))
+    page1.insert_text((210, 370), jenis_pelatihan.upper(), fontsize=12, fontname="helv", fill=(0, 0, 0))
+    page1.insert_text((450, 450), tanggal, fontsize=12, fontname="helv", fill=(0, 0, 0))
 
-        # 2️⃣ Upload ke Google Drive
-        upload_result = upload_to_drive(
-            local_file_path=output_path,
-            filename_drive=os.path.basename(output_path),
-            folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
-        )
+    # Halaman 2
+    if len(doc) > 1:
+        page2 = doc[1]
+        page2.insert_text((150, 500), jenis_pelatihan.upper(), fontsize=14, fontname="helv", fill=(0, 0, 0))
 
-        file_id = upload_result.get("file_id")
-        if not file_id:
-            return {"status": "error", "message": "❌ Gagal mendapatkan file_id dari Google Drive."}
+    filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
+    output_path = os.path.join(OUTPUT_DIR, filename)
+    doc.save(output_path)
+    doc.close()
+    return output_path
 
-        # 🔗 Link download langsung dari Google Drive
-        download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
+def get_drive_service():
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    return build('drive', 'v3', credentials=creds)
 
-        # 3️⃣ Kirim ke WordPress (update kolom file_pdf)
-        post_data = {
-            'action': 'update_file_pdf',
-            'id': payload.id,
-            'file_pdf': download_link
-        }
+def file_exists(service, folder_id, filename):
+    query = f"'{folder_id}' in parents and name = '{filename}' and trashed = false"
+    results = service.files().list(q=query, fields="files(id, webViewLink)").execute()
+    files = results.get('files', [])
+    if files:
+        return files[0]  # file sudah ada
+    return None
 
-        wp_response = requests.post("https://petroenergisafety.com/wp-admin/admin-ajax.php", data=post_data)
-        print("🔁 Response update_file_pdf:", wp_response.text)
+def upload_to_drive(local_file_path, filename_drive, folder_id):
+    service = get_drive_service()
 
+    # ✅ Cek apakah file sudah ada
+    existing_file = file_exists(service, folder_id, filename_drive)
+    if existing_file:
+        print("✅ File sudah ada di Drive, tidak diupload ulang.")
         return {
-            "status": "success",
-            "message": "✅ Sertifikat berhasil dibuat dan diupload.",
-            "drive_link": upload_result.get("view_link"),
-            "download_link": download_link,
-            "filename": os.path.basename(output_path)
+            "file_id": existing_file['id'],
+            "view_link": existing_file.get("webViewLink")
         }
 
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    # 🔁 Upload baru jika belum ada
+    file_metadata = {
+        'name': filename_drive,
+        'parents': [folder_id]
+    }
+    media = MediaFileUpload(local_file_path, mimetype='application/pdf')
+    uploaded = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
 
-@app.get("/download/{filename}")
-async def download_file(filename: str):
-    file_path = f"output/{filename}"
-    if not os.path.exists(file_path):
-        return {"status": "error", "message": "❌ File tidak ditemukan."}
-    
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type='application/pdf'
-    )
+    return {
+        "file_id": uploaded.get("id"),
+        "view_link": uploaded.get("webViewLink")
+    }
