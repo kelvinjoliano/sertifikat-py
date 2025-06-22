@@ -15,7 +15,7 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         if not base64_creds:
             raise ValueError("❌ Environment variable 'GOOGLE_CREDS_BASE64' tidak ditemukan.")
 
-        # Simpan kredensial dari base64 ke file
+        # Simpan kredensial dari base64 ke file sementara
         with open("service_account_credentials.json", "wb") as f:
             f.write(base64.b64decode(base64_creds))
 
@@ -109,8 +109,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     # ✅ Upload otomatis ke Google Drive
     upload_result = upload_to_drive(output_path, output_filename, folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
 
-return {
-    "output_path": output_path,
-    "upload_result": upload_result
-}
-
+    return {
+        "output_path": output_path,
+        "upload_result": upload_result
+    }
