@@ -6,16 +6,16 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# =================== UPLOAD TO GOOGLE DRIVE ===================
+# =================== Upload ke Google Drive ===================
 
 def upload_to_drive(local_file_path, filename_drive, folder_id):
     try:
         SCOPES = ['https://www.googleapis.com/auth/drive']
         base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
         if not base64_creds:
-            raise ValueError("❌ Environment variable 'GOOGLE_CREDS_BASE64' tidak ditemukan.")
+            raise ValueError("❌ GOOGLE_CREDS_BASE64 tidak ditemukan.")
 
-        # Simpan kredensial dari base64 ke file sementara
+        # Simpan kredensial sementara ke file JSON
         with open("service_account_credentials.json", "wb") as f:
             f.write(base64.b64decode(base64_creds))
 
@@ -25,31 +25,31 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
 
         service = build('drive', 'v3', credentials=credentials)
 
-        file_metadata = {'name': filename_drive, 'parents': [folder_id]}
+        file_metadata = {
+            'name': filename_drive,
+            'parents': [folder_id]
+        }
         media = MediaFileUpload(local_file_path, mimetype='application/pdf')
-
         file = service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id, webViewLink, webContentLink'
+            fields='id'
         ).execute()
 
-        # Buka akses publik
+        # Buat file bisa diakses publik
         service.permissions().create(
             fileId=file.get('id'),
             body={'type': 'anyone', 'role': 'reader'}
         ).execute()
 
         return {
-            "file_id": file.get('id'),
-            "view_link": file.get('webViewLink'),
-            "download_link": file.get('webContentLink')
+            "file_id": file.get('id')
         }
 
     except Exception as e:
         return {"error": str(e)}
 
-# =================== GENERATE PDF SERTIFIKAT ===================
+# =================== Generate Sertifikat ===================
 
 def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
     jenis = jenis_pelatihan.upper()
@@ -106,7 +106,6 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     doc.save(output_path)
     doc.close()
 
-    # ✅ Upload otomatis ke Google Drive
     upload_result = upload_to_drive(output_path, output_filename, folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
 
     return {
