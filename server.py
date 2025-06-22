@@ -10,17 +10,17 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from datetime import datetime
 
-# Setup logging
+# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Setup rate limiter
+# Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Izinkan CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -32,6 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Payload schema
 class SertifikatPayload(BaseModel):
     nama_peserta: str = Field(..., min_length=1, max_length=100)
     nomor_sertifikat: str = Field(..., min_length=1, max_length=50)
@@ -44,7 +45,7 @@ class SertifikatPayload(BaseModel):
         for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
             try:
                 parsed_date = datetime.strptime(v, fmt)
-                return parsed_date.strftime('%d/%m/%Y')  # Format akhir
+                return parsed_date.strftime('%d/%m/%Y')
             except ValueError:
                 continue
         raise ValueError("Format tanggal harus YYYY-MM-DD atau DD-MM-YYYY")
@@ -55,18 +56,22 @@ class SertifikatPayload(BaseModel):
             raise ValueError("Nama peserta hanya boleh berisi huruf, angka, spasi, titik, atau tanda hubung")
         return v
 
+    class Config:
+        extra = "ignore"  # ✅ Abaikan field asing seperti `nik`
+
+# POST: /generate
 @app.post("/generate")
 @limiter.limit("5/minute")
 async def generate(payload: SertifikatPayload, request: Request):
-    logger.info(f"Received request to generate certificate for {payload.nama_peserta}")
+    logger.info(f"[GENERATE] 🟢 Permintaan dari {request.client.host} | Nama: {payload.nama_peserta}")
 
     if payload.status.lower() != "lulus":
-        logger.warning(f"Denied request: Status {payload.status} is not 'lulus'")
+        logger.warning(f"[GENERATE] 🔴 Status bukan lulus: {payload.status}")
         raise HTTPException(status_code=400, detail="Status bukan lulus")
 
     jenis = payload.jenis_pelatihan.upper()
     if jenis not in ["WAH", "BFA", "BFF"]:
-        logger.error(f"Invalid training type: {jenis}")
+        logger.error(f"[GENERATE] 🔴 Jenis pelatihan tidak valid: {jenis}")
         raise HTTPException(status_code=400, detail=f"Jenis pelatihan '{jenis}' tidak dikenali")
 
     try:
@@ -82,36 +87,37 @@ async def generate(payload: SertifikatPayload, request: Request):
         file_id = upload_result.get("file_id")
 
         if not file_id:
-            logger.error(f"Failed to upload to Google Drive: {upload_result.get('error')}")
+            logger.error(f"[GENERATE] 🔴 Upload gagal: {upload_result.get('error')}")
             raise HTTPException(status_code=500, detail="Gagal upload ke Google Drive")
 
         download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
-        logger.info(f"Certificate generated successfully: {os.path.basename(output_path)}")
+        logger.info(f"[GENERATE] ✅ Sertifikat berhasil: {os.path.basename(output_path)}")
 
         return {
             "status": "success",
             "message": "Sertifikat berhasil dibuat",
             "download_link": download_link,
-            "filename": os.path.basename(output_path)
+            "file_name": os.path.basename(output_path)
         }
 
     except Exception as e:
-        logger.error(f"Error generating certificate: {str(e)}")
+        logger.exception(f"[GENERATE] 🔥 Error saat membuat sertifikat")
         raise HTTPException(status_code=500, detail=f"Gagal membuat sertifikat: {str(e)}")
 
+# GET: /download
 @app.get("/download/{filename}")
 @limiter.limit("10/minute")
 async def download_file(filename: str, request: Request):
     if '..' in filename or '/' in filename or '\\' in filename:
-        logger.warning(f"Invalid filename attempt: {filename}")
+        logger.warning(f"[DOWNLOAD] 🛑 Nama file mencurigakan: {filename}")
         raise HTTPException(status_code=400, detail="Nama file tidak valid")
 
     file_path = os.path.join("output", filename)
     if not os.path.exists(file_path):
-        logger.error(f"File not found: {file_path}")
+        logger.error(f"[DOWNLOAD] ❌ File tidak ditemukan: {file_path}")
         raise HTTPException(status_code=404, detail="File tidak ditemukan")
 
-    logger.info(f"Downloading file: {filename}")
+    logger.info(f"[DOWNLOAD] ⬇️ Mengunduh file: {filename}")
     return FileResponse(
         path=file_path,
         filename=filename,
