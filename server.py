@@ -9,11 +9,9 @@ import mysql.connector
 app = FastAPI()
 
 # ✅ Izinkan akses dari domain WordPress
-from fastapi.middleware.cors import CORSMiddleware
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # sementara izinkan semua asal dulu, nanti bisa dibatasi
+    allow_origins=["https://petroenergisafety.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,7 +26,7 @@ class SertifikatPayload(BaseModel):
     jenis_pelatihan: str
     status: str
 
-# ✅ Fungsi update ke database langsung
+# ✅ Fungsi update kolom file_pdf ke DB
 def update_file_pdf_to_db(id, file_pdf):
     try:
         conn = mysql.connector.connect(
@@ -49,7 +47,7 @@ def update_file_pdf_to_db(id, file_pdf):
         print("❌ Database Error:", e)
         return False
 
-# ✅ Endpoint utama
+# ✅ Endpoint utama: POST dari WP admin
 @app.post("/generate")
 async def generate(payload: SertifikatPayload):
     try:
@@ -60,7 +58,7 @@ async def generate(payload: SertifikatPayload):
         if jenis not in ["BFA", "BFF", "WAH"]:
             return {"status": "error", "message": f"❌ Jenis pelatihan '{jenis}' tidak dikenali."}
 
-        # 1️⃣ Buat & upload PDF ke Google Drive
+        # 1️⃣ Generate sertifikat & upload ke Drive
         hasil = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
@@ -75,9 +73,10 @@ async def generate(payload: SertifikatPayload):
         if not file_id:
             return {"status": "error", "message": "❌ Gagal upload ke Google Drive."}
 
+        # ✅ Link download langsung dari Drive
         download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-        # 2️⃣ Simpan hanya kolom file_pdf ke database
+        # 2️⃣ Simpan hanya kolom file_pdf (tanpa file_url) ke DB
         sukses = update_file_pdf_to_db(payload.id, download_link)
         if not sukses:
             return {"status": "error", "message": "❌ Gagal update kolom file_pdf di database."}
@@ -92,7 +91,7 @@ async def generate(payload: SertifikatPayload):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# ✅ Endpoint download lokal jika perlu
+# ✅ Endpoint tambahan jika ingin mendownload dari server (opsional)
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     file_path = f"output/{filename}"
