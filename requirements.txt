@@ -1,12 +1,12 @@
-echo fastapi
-echo uvicorn
-echo pydantic
-echo python-multipart
-echo python-dotenv
-echo google-api-python-client
-echo google-auth
-echo google-auth-oauthlib
-echo google-auth-httplib2
-echo PyMuPDF
-echo mysql-connector-python
-echo slowapi
+fastapi
+uvicorn
+pydantic
+python-multipart
+python-dotenv
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+PyMuPDF
+mysql-connector-python
+slowapi
