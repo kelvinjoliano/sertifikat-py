@@ -110,6 +110,11 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     upload_result = upload_to_drive(output_path, output_filename, folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
 
     return {
-        "output_path": output_path,
-        "upload_result": upload_result
+    "output_path": output_path,
+    "upload_result": {
+        "file_id": "1xABC...",
+        "view_link": "https://drive.google.com/file/d/1xABC.../view?usp=sharing",
+        "download_link": "https://drive.google.com/uc?export=download&id=1xABC..."
     }
+}
+
