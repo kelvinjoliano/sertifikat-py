@@ -9,9 +9,11 @@ import mysql.connector
 app = FastAPI()
 
 # ✅ Izinkan akses dari domain WordPress
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://petroenergisafety.com"],
+    allow_origins=["*"],  # sementara izinkan semua asal dulu, nanti bisa dibatasi
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
