@@ -10,7 +10,7 @@ app = FastAPI()
 # Izinkan CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Gunakan wildcard saat testing
+    allow_origins=["https://petroenergisafety.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
