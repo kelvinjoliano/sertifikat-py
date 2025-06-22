@@ -1,18 +1,4 @@
-# 🔐 File kredensial rahasia
-service_account_credentials.json
-
-# 📂 Output hasil generate sertifikat
-output/
-
-# 🐍 File Python cache
-__pycache__/
-*.pyc
-
-# 💻 File sistem lokal
-.DS_Store
-
-# ⚙️ VSCode settings (jika ada)
-.vscode/
-
-# 🧪 File konfigurasi environment (jika pakai)
-.env
+echo venv/ > .gitignore
+echo __pycache__/ >> .gitignore
+echo *.pyc >> .gitignore
+echo .env >> .gitignore

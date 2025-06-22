@@ -1,11 +1,12 @@
-fastapi
-uvicorn
-pydantic
-python-multipart
-python-dotenv
-google-api-python-client
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-PyMuPDF
-mysql-connector-python
+echo fastapi > requirements.txt
+echo uvicorn >> requirements.txt
+echo pydantic >> requirements.txt
+echo python-multipart >> requirements.txt
+echo python-dotenv >> requirements.txt
+echo google-api-python-client >> requirements.txt
+echo google-auth >> requirements.txt
+echo google-auth-oauthlib >> requirements.txt
+echo google-auth-httplib2 >> requirements.txt
+echo PyMuPDF >> requirements.txt
+echo mysql-connector-python >> requirements.txt
+echo slowapi >> requirements.txt

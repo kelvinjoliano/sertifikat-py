@@ -1,56 +1,88 @@
 import fitz  # PyMuPDF
 import os
 import base64
+import time
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from functools import lru_cache
 
 # =================== Upload ke Google Drive ===================
 def upload_to_drive(local_file_path, filename_drive, folder_id):
+    start_time = time.time()
     try:
         print("📤 Mulai upload ke Google Drive...")
-
         SCOPES = ['https://www.googleapis.com/auth/drive']
-        base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
-        if not base64_creds:
-            raise ValueError("❌ GOOGLE_CREDS_BASE64 tidak ditemukan.")
+        creds_file = "service_account_credentials.json"
+        use_base64 = False
 
-        # Simpan kredensial sementara ke file JSON
-        with open("service_account_credentials.json", "wb") as f:
-            f.write(base64.b64decode(base64_creds))
-        print("✅ Kredensial berhasil disimpan.")
-
-        credentials = service_account.Credentials.from_service_account_file(
-            "service_account_credentials.json", scopes=SCOPES
-        )
+        # Coba baca kredensial dari file JSON terlebih dahulu
+        if os.path.exists(creds_file):
+            print("✅ Menggunakan kredensial dari service_account_credentials.json")
+            credentials = service_account.Credentials.from_service_account_file(
+                creds_file, scopes=SCOPES)
+        else:
+            # Fallback ke GOOGLE_CREDS_BASE64
+            base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
+            if not base64_creds:
+                raise ValueError("❌ Tidak ditemukan GOOGLE_CREDS_BASE64 atau service_account_credentials.json")
+            
+            # Simpan kredensial sementara ke file JSON
+            with open(creds_file, "wb") as f:
+                f.write(base64.b64decode(base64_creds))
+            print("✅ Kredensial base64 disimpan sementara")
+            credentials = service_account.Credentials.from_service_account_file(
+                creds_file, scopes=SCOPES)
+            use_base64 = True
 
         service = build('drive', 'v3', credentials=credentials)
 
         file_metadata = {'name': filename_drive, 'parents': [folder_id]}
         media = MediaFileUpload(local_file_path, mimetype='application/pdf')
 
-        file = service.files().create(
+        # Lakukan upload dan tangkap hasilnya
+        uploaded_file = service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id'
         ).execute()
 
+        # Beri izin akses publik
         service.permissions().create(
-            fileId=file.get('id'),
+            fileId=uploaded_file.get('id'),
             body={'type': 'anyone', 'role': 'reader'}
         ).execute()
 
-        print("✅ Upload sukses dengan ID:", file.get('id'))
+        print(f"✅ Upload sukses dengan ID: {uploaded_file.get('id')} dalam {time.time() - start_time:.2f} detik")
 
-        return {"file_id": file.get('id')}
+        # Hapus file kredensial sementara hanya jika menggunakan base64
+        if use_base64 and os.path.exists(creds_file):
+            os.remove(creds_file)
+            print("✅ File kredensial sementara dihapus")
+
+        return {"file_id": uploaded_file.get('id')}
 
     except Exception as e:
-        print("❌ Upload gagal:", str(e))
+        print(f"❌ Upload gagal: {str(e)}")
         return {"error": str(e)}
+    finally:
+        # Pastikan file sementara dihapus jika ada error dan menggunakan base64
+        if use_base64 and os.path.exists(creds_file):
+            try:
+                os.remove(creds_file)
+                print("✅ File kredensial sementara dihapus setelah error")
+            except Exception as cleanup_error:
+                print(f"❌ Gagal menghapus file kredensial sementara: {str(cleanup_error)}")
 
 # =================== Generate Sertifikat ===================
+@lru_cache(maxsize=3)
+def load_template(template_path):
+    """Cache template PDF untuk efisiensi"""
+    return fitz.open(template_path)
+
 def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
-    print("🧾 Mulai generate sertifikat:", nama_peserta, jenis_pelatihan)
+    start_time = time.time()
+    print(f"🧾 Mulai generate sertifikat: {nama_peserta}, {jenis_pelatihan}")
 
     jenis = jenis_pelatihan.upper()
 
@@ -61,15 +93,45 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     }
 
     koordinats = {
-        "WAH": {"nomor": (320, 145), "nama_h1_y": 345, "tanggal": (610, 455), "nama_h2": (570, 505)},
-        "BFA": {"nomor": (320, 145), "nama_h1_y": 345, "tanggal": (610, 460), "nama_h2": (600, 520)},
-        "BFF": {"nomor": (320, 145), "nama_h1_y": 345, "tanggal": (610, 455), "nama_h2": (570, 505)}
+        "WAH": {
+            "nomor": (320, 145),
+            "nama_h1_y": 345,
+            "tanggal": (610, 455),
+            "nama_h2": (570, 505)
+        },
+        "BFA": {
+            "nomor": (320, 145),
+            "nama_h1_y": 345,
+            "tanggal": (610, 460),
+            "nama_h2": (600, 520)
+        },
+        "BFF": {
+            "nomor": (320, 145),
+            "nama_h1_y": 345,
+            "tanggal": (610, 455),
+            "nama_h2": (570, 505)
+        }
     }
 
     ukurans = {
-        "WAH": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16},
-        "BFA": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16},
-        "BFF": {"nomor": 20, "nama_h1": 48, "tanggal": 15, "nama_h2": 16}
+        "WAH": {
+            "nomor": 20,
+            "nama_h1": 48,
+            "tanggal": 15,
+            "nama_h2": 16
+        },
+        "BFA": {
+            "nomor": 20,
+            "nama_h1": 48,
+            "tanggal": 15,
+            "nama_h2": 16
+        },
+        "BFF": {
+            "nomor": 20,
+            "nama_h1": 48,
+            "tanggal": 15,
+            "nama_h2": 16
+        }
     }
 
     if jenis not in templates:
@@ -79,9 +141,9 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template tidak ditemukan: {template_path}")
 
-    print("📄 Template ditemukan:", template_path)
+    print(f"📄 Template ditemukan: {template_path}")
 
-    doc = fitz.open(template_path)
+    doc = load_template(template_path)
     page1, page2 = doc[0], doc[1]
 
     def insert_centered_text(page, text, y_pos, fontsize, color):
@@ -93,10 +155,17 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     koordinat = koordinats[jenis]
     ukuran = ukurans[jenis]
 
-    page1.insert_text(koordinat["nomor"], nomor_sertifikat, fontsize=ukuran["nomor"], fontname="helv", color=(0, 0, 0))
-    insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"], ukuran["nama_h1"], (0.0, 0.2, 0.8))
-    page2.insert_text(koordinat["tanggal"], tanggal, fontsize=ukuran["tanggal"], fontname="helv", color=(0, 0, 0))
-    page2.insert_text(koordinat["nama_h2"], nama_peserta, fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
+    # Halaman 1
+    page1.insert_text(koordinat["nomor"], nomor_sertifikat,
+                      fontsize=ukuran["nomor"], fontname="helv", color=(0, 0, 0))
+    insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"],
+                         ukuran["nama_h1"], (0.0, 0.2, 0.8))
+
+    # Halaman 2
+    page2.insert_text(koordinat["tanggal"], tanggal,
+                      fontsize=ukuran["tanggal"], fontname="helv", color=(0, 0, 0))
+    page2.insert_text(koordinat["nama_h2"], nama_peserta,
+                      fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
 
     os.makedirs("output", exist_ok=True)
     output_filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
@@ -105,11 +174,11 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     doc.save(output_path)
     doc.close()
 
-    print("✅ Sertifikat disimpan di:", output_path)
+    print(f"✅ Sertifikat disimpan di: {output_path} dalam {time.time() - start_time:.2f} detik")
 
-    upload_result = upload_to_drive(output_path, output_filename, folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
+    upload_result = upload_to_drive(
+        output_path,
+        output_filename,
+        folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
 
-    return {
-        "output_path": output_path,
-        "upload_result": upload_result
-    }
+    return {"output_path": output_path, "upload_result": upload_result}
