@@ -8,7 +8,7 @@ import mysql.connector
 
 app = FastAPI()
 
-# ✅ CORS agar bisa diakses dari WordPress
+# ✅ Izinkan akses dari domain WordPress
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://petroenergisafety.com"],
@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Payload dari WP Admin
+# ✅ Struktur data dari WordPress
 class SertifikatPayload(BaseModel):
     id: int
     nama_peserta: str
@@ -26,8 +26,8 @@ class SertifikatPayload(BaseModel):
     jenis_pelatihan: str
     status: str
 
-# ✅ Fungsi simpan langsung ke database (file_url saja)
-def update_file_links_to_db(id, file_url):
+# ✅ Fungsi update ke database langsung
+def update_file_pdf_to_db(id, file_pdf):
     try:
         conn = mysql.connector.connect(
             host="127.0.0.1",
@@ -37,14 +37,14 @@ def update_file_links_to_db(id, file_url):
         )
         cursor = conn.cursor()
 
-        query = "UPDATE sertifikat_peserta SET file_url = %s WHERE id = %s"
-        cursor.execute(query, (file_url, id))
+        query = "UPDATE sertifikat_peserta SET file_pdf = %s WHERE id = %s"
+        cursor.execute(query, (file_pdf, id))
         conn.commit()
         cursor.close()
         conn.close()
         return True
     except Exception as e:
-        print("❌ DB Error:", e)
+        print("❌ Database Error:", e)
         return False
 
 # ✅ Endpoint utama
@@ -52,13 +52,13 @@ def update_file_links_to_db(id, file_url):
 async def generate(payload: SertifikatPayload):
     try:
         if payload.status.lower() != "lulus":
-            return {"status": "denied", "message": "❌ Sertifikat hanya untuk peserta dengan status 'lulus'."}
+            return {"status": "denied", "message": "❌ Hanya peserta dengan status 'lulus' yang dibuatkan sertifikat."}
 
         jenis = payload.jenis_pelatihan.upper()
         if jenis not in ["BFA", "BFF", "WAH"]:
-            return {"status": "error", "message": f"❌ Jenis '{jenis}' tidak didukung."}
+            return {"status": "error", "message": f"❌ Jenis pelatihan '{jenis}' tidak dikenali."}
 
-        # 1️⃣ Generate PDF & Upload ke Drive
+        # 1️⃣ Buat & upload PDF ke Google Drive
         hasil = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
@@ -73,28 +73,27 @@ async def generate(payload: SertifikatPayload):
         if not file_id:
             return {"status": "error", "message": "❌ Gagal upload ke Google Drive."}
 
-        view_link = upload_result.get("view_link")
+        download_link = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-        # 2️⃣ Simpan hanya view_link ke kolom file_url
-        sukses = update_file_links_to_db(payload.id, view_link)
+        # 2️⃣ Simpan hanya kolom file_pdf ke database
+        sukses = update_file_pdf_to_db(payload.id, download_link)
         if not sukses:
-            return {"status": "error", "message": "❌ Gagal menyimpan ke database (file_url)."}
+            return {"status": "error", "message": "❌ Gagal update kolom file_pdf di database."}
 
         return {
             "status": "success",
-            "message": "✅ Sertifikat berhasil dibuat & disimpan ke database.",
-            "drive_link": view_link,
+            "message": "✅ Sertifikat berhasil dibuat & disimpan.",
+            "download_link": download_link,
             "filename": os.path.basename(output_path)
         }
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# ✅ Endpoint download file lokal jika dibutuhkan
+# ✅ Endpoint download lokal jika perlu
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     file_path = f"output/{filename}"
     if not os.path.exists(file_path):
         return {"status": "error", "message": "❌ File tidak ditemukan."}
-    
     return FileResponse(path=file_path, filename=filename, media_type='application/pdf')
