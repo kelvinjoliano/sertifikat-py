@@ -25,15 +25,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://petroenergisafety.com",
-        "http://localhost:3000",  # Untuk testing frontend lokal
-        # Tambahkan domain Railway sementara jika perlu
+        "http://localhost:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Payload dari frontend
 class SertifikatPayload(BaseModel):
     nama_peserta: str = Field(..., min_length=1, max_length=100)
     nomor_sertifikat: str = Field(..., min_length=1, max_length=50)
@@ -43,11 +41,13 @@ class SertifikatPayload(BaseModel):
 
     @validator('tanggal')
     def validate_tanggal(cls, v):
-        try:
-            datetime.strptime(v, '%Y-%m-%d')
-            return v
-        except ValueError:
-            raise ValueError("Format tanggal harus YYYY-MM-DD")
+        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                parsed_date = datetime.strptime(v, fmt)
+                return parsed_date.strftime('%d/%m/%Y')  # Format akhir
+            except ValueError:
+                continue
+        raise ValueError("Format tanggal harus YYYY-MM-DD atau DD-MM-YYYY")
 
     @validator('nama_peserta')
     def validate_nama_peserta(cls, v):
@@ -55,7 +55,6 @@ class SertifikatPayload(BaseModel):
             raise ValueError("Nama peserta hanya boleh berisi huruf, angka, spasi, titik, atau tanda hubung")
         return v
 
-# Endpoint untuk generate sertifikat
 @app.post("/generate")
 @limiter.limit("5/minute")
 async def generate(payload: SertifikatPayload, request: Request):
@@ -100,11 +99,9 @@ async def generate(payload: SertifikatPayload, request: Request):
         logger.error(f"Error generating certificate: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Gagal membuat sertifikat: {str(e)}")
 
-# Endpoint untuk download lokal (opsional, perhatikan di Railway)
 @app.get("/download/{filename}")
 @limiter.limit("10/minute")
 async def download_file(filename: str, request: Request):
-    # Sanitasi filename untuk mencegah path traversal
     if '..' in filename or '/' in filename or '\\' in filename:
         logger.warning(f"Invalid filename attempt: {filename}")
         raise HTTPException(status_code=400, detail="Nama file tidak valid")
