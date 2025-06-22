@@ -5,7 +5,6 @@ import time
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from functools import lru_cache
 
 # =================== Upload ke Google Drive ===================
 def upload_to_drive(local_file_path, filename_drive, folder_id):
@@ -40,14 +39,13 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         file_metadata = {'name': filename_drive, 'parents': [folder_id]}
         media = MediaFileUpload(local_file_path, mimetype='application/pdf')
 
-        # Lakukan upload dan tangkap hasilnya
         uploaded_file = service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id'
         ).execute()
 
-        # Beri izin akses publik
+        # Buat file publik
         service.permissions().create(
             fileId=uploaded_file.get('id'),
             body={'type': 'anyone', 'role': 'reader'}
@@ -55,7 +53,7 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
 
         print(f"✅ Upload sukses dengan ID: {uploaded_file.get('id')} dalam {time.time() - start_time:.2f} detik")
 
-        # Hapus file kredensial sementara hanya jika menggunakan base64
+        # Hapus file kredensial sementara hanya jika pakai base64
         if use_base64 and os.path.exists(creds_file):
             os.remove(creds_file)
             print("✅ File kredensial sementara dihapus")
@@ -66,7 +64,6 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         print(f"❌ Upload gagal: {str(e)}")
         return {"error": str(e)}
     finally:
-        # Pastikan file sementara dihapus jika ada error dan menggunakan base64
         if use_base64 and os.path.exists(creds_file):
             try:
                 os.remove(creds_file)
@@ -75,11 +72,6 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
                 print(f"❌ Gagal menghapus file kredensial sementara: {str(cleanup_error)}")
 
 # =================== Generate Sertifikat ===================
-@lru_cache(maxsize=3)
-def load_template(template_path):
-    """Cache template PDF untuk efisiensi"""
-    return fitz.open(template_path)
-
 def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
     start_time = time.time()
     print(f"🧾 Mulai generate sertifikat: {nama_peserta}, {jenis_pelatihan}")
@@ -143,7 +135,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
 
     print(f"📄 Template ditemukan: {template_path}")
 
-    doc = load_template(template_path)
+    doc = fitz.open(template_path)
     page1, page2 = doc[0], doc[1]
 
     def insert_centered_text(page, text, y_pos, fontsize, color):
@@ -179,6 +171,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     upload_result = upload_to_drive(
         output_path,
         output_filename,
-        folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l")
+        folder_id="1B_Hg5S6GaslwPDrm16RjA4WJ572tL01l"
+    )
 
     return {"output_path": output_path, "upload_result": upload_result}
