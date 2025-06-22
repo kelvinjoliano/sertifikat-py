@@ -11,7 +11,7 @@ app = FastAPI()
 # ✅ Izinkan akses dari domain WordPress
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://petroenergisafety.com"]
+    allow_origins=["https://petroenergisafety.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
