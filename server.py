@@ -1,6 +1,7 @@
 import os
 import logging
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
+app.mount("/sertifikat", StaticFiles(directory="New_Sertifikat"), name="sertifikat")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
