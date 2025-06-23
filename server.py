@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
-app.mount("/sertifikat", StaticFiles(directory="New_Sertifikat"), name="sertifikat")
+app.mount("/sertifikat", StaticFiles(directory="output"), name="sertifikat")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
