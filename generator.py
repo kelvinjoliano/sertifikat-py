@@ -2,14 +2,9 @@ import fitz  # PyMuPDF
 import os
 import base64
 import time
-from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
-dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
-load_dotenv(dotenv_path)
-print("📦 GOOGLE_CREDS_BASE64 ada:", "Ya" if os.getenv("GOOGLE_CREDS_BASE64") else "Tidak")
 
 # =================== Upload ke Google Drive ===================
 def upload_to_drive(local_file_path, filename_drive, folder_id):
