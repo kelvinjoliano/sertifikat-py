@@ -2,9 +2,14 @@ import fitz  # PyMuPDF
 import os
 import base64
 import time
+from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
+dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path)
+print("📦 GOOGLE_CREDS_BASE64 ada:", "Ya" if os.getenv("GOOGLE_CREDS_BASE64") else "Tidak")
 
 # =================== Upload ke Google Drive ===================
 def upload_to_drive(local_file_path, filename_drive, folder_id):
@@ -15,18 +20,15 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
         creds_file = "service_account_credentials.json"
         use_base64 = False
 
-        # Coba baca kredensial dari file JSON terlebih dahulu
         if os.path.exists(creds_file):
             print("✅ Menggunakan kredensial dari service_account_credentials.json")
             credentials = service_account.Credentials.from_service_account_file(
                 creds_file, scopes=SCOPES)
         else:
-            # Fallback ke GOOGLE_CREDS_BASE64
             base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
             if not base64_creds:
                 raise ValueError("❌ Tidak ditemukan GOOGLE_CREDS_BASE64 atau service_account_credentials.json")
             
-            # Simpan kredensial sementara ke file JSON
             with open(creds_file, "wb") as f:
                 f.write(base64.b64decode(base64_creds))
             print("✅ Kredensial base64 disimpan sementara")
@@ -45,7 +47,6 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
             fields='id'
         ).execute()
 
-        # Buat file publik
         service.permissions().create(
             fileId=uploaded_file.get('id'),
             body={'type': 'anyone', 'role': 'reader'}
@@ -53,7 +54,6 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
 
         print(f"✅ Upload sukses dengan ID: {uploaded_file.get('id')} dalam {time.time() - start_time:.2f} detik")
 
-        # Hapus file kredensial sementara hanya jika pakai base64
         if use_base64 and os.path.exists(creds_file):
             os.remove(creds_file)
             print("✅ File kredensial sementara dihapus")
