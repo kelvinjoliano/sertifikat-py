@@ -165,14 +165,14 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
                 img_stream = BytesIO(response.content)
 
                 img_width, img_height = 120, 120
-page_width = page2.rect.width
-x_center = (page_width - img_width) / 2
+                page_width = page2.rect.width
+                x_center = (page_width - img_width) / 2
 
-# ⬆ Naikkan posisi dari bawah
-y_bottom = page2.rect.height - 200
+                # Naikkan posisi dari bawah
+                y_bottom = page2.rect.height - 200
 
-img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
-page2.insert_image(img_rect, stream=img_stream)
+                img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
+                page2.insert_image(img_rect, stream=img_stream)
 
                 print("🖼️ Foto peserta berhasil ditempel di halaman 2.")
             else:
