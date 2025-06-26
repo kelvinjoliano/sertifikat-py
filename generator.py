@@ -2,6 +2,8 @@ import fitz  # PyMuPDF
 import os
 import base64
 import time
+import requests
+from io import BytesIO
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -66,8 +68,9 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
             except Exception as cleanup_error:
                 print(f"❌ Gagal menghapus file kredensial sementara: {str(cleanup_error)}")
 
+
 # =================== Generate Sertifikat ===================
-def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan):
+def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan, foto_url=None):
     start_time = time.time()
     print(f"🧾 Mulai generate sertifikat: {nama_peserta}, {jenis_pelatihan}")
 
@@ -146,13 +149,38 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     page1.insert_text(koordinat["nomor"], nomor_sertifikat,
                       fontsize=ukuran["nomor"], fontname="helv", color=(0, 0, 0))
     insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"],
-                         ukuran["nama_h1"], (0.0, 0.2, 0.8))
+                         ukuran["nama_h1"], (0, 0, 0))
 
     # Halaman 2
     page2.insert_text(koordinat["tanggal"], tanggal,
                       fontsize=ukuran["tanggal"], fontname="helv", color=(0, 0, 0))
     page2.insert_text(koordinat["nama_h2"], nama_peserta,
                       fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
+
+    # Tambah Foto ke Halaman 2
+    if foto_url:
+        try:
+            response = requests.get(foto_url)
+            if response.status_code == 200:
+                img_stream = BytesIO(response.content)
+
+                img_width, img_height = 120, 120
+page_width = page2.rect.width
+x_center = (page_width - img_width) / 2
+
+# ⬆ Naikkan posisi dari bawah
+y_bottom = page2.rect.height - 200
+
+img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
+page2.insert_image(img_rect, stream=img_stream)
+
+                print("🖼️ Foto peserta berhasil ditempel di halaman 2.")
+            else:
+                print(f"⚠️ Gagal fetch foto: {foto_url}")
+        except Exception as e:
+            print(f"❌ Error tempel foto: {str(e)}")
+    else:
+        print("⚠️ Tidak ada foto yang diberikan.")
 
     os.makedirs("output", exist_ok=True)
     output_filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"

@@ -12,20 +12,23 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from datetime import datetime
 
+# Load environment variables
 load_dotenv()
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Rate Limiter
+# Rate limiter
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI()
-app.mount("/sertifikat", StaticFiles(directory="output"), name="sertifikat")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS
+# Serve output folder
+app.mount("/sertifikat", StaticFiles(directory="output"), name="sertifikat")
+
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -37,13 +40,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Payload schema
+# === Payload schema ===
 class SertifikatPayload(BaseModel):
     nama_peserta: str = Field(..., min_length=1, max_length=100)
     nomor_sertifikat: str = Field(..., min_length=1, max_length=50)
     tanggal: str
     jenis_pelatihan: str
     status: str
+    foto_url: str = None  # ➕ Tambahan foto peserta (opsional)
 
     @validator('tanggal')
     def validate_tanggal(cls, v):
@@ -62,29 +66,34 @@ class SertifikatPayload(BaseModel):
         return v
 
     class Config:
-        extra = "ignore"  # ✅ Abaikan field asing seperti `nik`
+        extra = "ignore"  # Ignore fields like NIK, alamat, dll jika ada
 
-# POST: /generate
+
+# === POST: /generate ===
 @app.post("/generate")
 @limiter.limit("5/minute")
 async def generate(payload: SertifikatPayload, request: Request):
     logger.info(f"[GENERATE] 🟢 Permintaan dari {request.client.host} | Nama: {payload.nama_peserta}")
 
+    # Validasi status
     if payload.status.lower() != "lulus":
         logger.warning(f"[GENERATE] 🔴 Status bukan lulus: {payload.status}")
         raise HTTPException(status_code=400, detail="Status bukan lulus")
 
+    # Validasi jenis pelatihan
     jenis = payload.jenis_pelatihan.upper()
     if jenis not in ["WAH", "BFA", "BFF"]:
         logger.error(f"[GENERATE] 🔴 Jenis pelatihan tidak valid: {jenis}")
         raise HTTPException(status_code=400, detail=f"Jenis pelatihan '{jenis}' tidak dikenali")
 
     try:
+        # Panggil generator dengan semua data termasuk foto_url
         hasil = generate_sertifikat(
             nama_peserta=payload.nama_peserta,
             nomor_sertifikat=payload.nomor_sertifikat,
             tanggal=payload.tanggal,
-            jenis_pelatihan=jenis
+            jenis_pelatihan=jenis,
+            foto_url=payload.foto_url
         )
 
         output_path = hasil["output_path"]
@@ -109,10 +118,12 @@ async def generate(payload: SertifikatPayload, request: Request):
         logger.exception(f"[GENERATE] 🔥 Error saat membuat sertifikat")
         raise HTTPException(status_code=500, detail=f"Gagal membuat sertifikat: {str(e)}")
 
-# GET: /download
+
+# === GET: /download/{filename} ===
 @app.get("/download/{filename}")
 @limiter.limit("10/minute")
 async def download_file(filename: str, request: Request):
+    # Cegah akses path yang berbahaya
     if '..' in filename or '/' in filename or '\\' in filename:
         logger.warning(f"[DOWNLOAD] 🛑 Nama file mencurigakan: {filename}")
         raise HTTPException(status_code=400, detail="Nama file tidak valid")
