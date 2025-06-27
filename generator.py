@@ -25,7 +25,7 @@ def upload_to_drive(local_file_path, filename_drive, folder_id):
             base64_creds = os.getenv("GOOGLE_CREDS_BASE64")
             if not base64_creds:
                 raise ValueError("❌ Tidak ditemukan GOOGLE_CREDS_BASE64 atau service_account_credentials.json")
-            
+
             with open(creds_file, "wb") as f:
                 f.write(base64.b64decode(base64_creds))
             print("✅ Kredensial base64 disimpan sementara")
@@ -93,7 +93,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
             "nomor": (320, 145),
             "nama_h1_y": 345,
             "tanggal": (610, 460),
-            "nama_h2": (600, 520)
+            "nama_h2": (600, 508)
         },
         "BFF": {
             "nomor": (320, 145),
@@ -146,8 +146,8 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
     ukuran = ukurans[jenis]
 
     # Halaman 1
-    page1.insert_text(koordinat["nomor"], nomor_sertifikat,
-                      fontsize=ukuran["nomor"], fontname="helv", color=(0, 0, 0))
+    insert_centered_text(page1, nomor_sertifikat, koordinat["nomor"][1],
+                     ukuran["nomor"], (0, 0, 0))
     insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"],
                          ukuran["nama_h1"], (0, 0, 0))
 
@@ -158,6 +158,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
                       fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
 
     # Tambah Foto ke Halaman 2
+        # Tambah Foto ke Halaman 2
     if foto_url:
         try:
             response = requests.get(foto_url)
@@ -166,10 +167,10 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
 
                 img_width, img_height = 120, 120
                 page_width = page2.rect.width
-                x_center = (page_width - img_width) / 2
+                x_center = (page_width - img_width) / 2 - 40
 
-                # Naikkan posisi dari bawah
-                y_bottom = page2.rect.height - 200
+                # ⬆ Naikkan posisi dari bawah
+                y_bottom = page2.rect.height - 160
 
                 img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
                 page2.insert_image(img_rect, stream=img_stream)
@@ -181,6 +182,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
             print(f"❌ Error tempel foto: {str(e)}")
     else:
         print("⚠️ Tidak ada foto yang diberikan.")
+
 
     os.makedirs("output", exist_ok=True)
     output_filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
