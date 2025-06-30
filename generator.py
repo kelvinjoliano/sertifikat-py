@@ -147,18 +147,22 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
 
     # Halaman 1
     insert_centered_text(page1, nomor_sertifikat, koordinat["nomor"][1],
-                     ukuran["nomor"], (0, 0, 0))
+                         ukuran["nomor"], (0, 0, 0))
     insert_centered_text(page1, nama_peserta, koordinat["nama_h1_y"],
                          ukuran["nama_h1"], (0, 0, 0))
 
     # Halaman 2
     page2.insert_text(koordinat["tanggal"], tanggal,
                       fontsize=ukuran["tanggal"], fontname="helv", color=(0, 0, 0))
-    page2.insert_text(koordinat["nama_h2"], nama_peserta,
-                      fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
+
+    # Fake Bold nama_h2 TANPA rata tengah
+    x, y = koordinat["nama_h2"]
+    offsets = [(0, 0), (0.3, 0), (-0.3, 0), (0, 0.3), (0, -0.3)]
+    for dx, dy in offsets:
+        page2.insert_text((x + dx, y + dy), nama_peserta,
+                          fontsize=ukuran["nama_h2"], fontname="helv", color=(0, 0, 0))
 
     # Tambah Foto ke Halaman 2
-        # Tambah Foto ke Halaman 2
     if foto_url:
         try:
             response = requests.get(foto_url)
@@ -166,10 +170,7 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
                 img_stream = BytesIO(response.content)
 
                 img_width, img_height = 80, 100
-                page_width = page2.rect.width
-                x_center = (page_width - img_width) / 2 - 40
-
-                # ⬆ Naikkan posisi dari bawah
+                x_center = (page2.rect.width - img_width) / 2 - 40
                 y_bottom = page2.rect.height - 140
 
                 img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
@@ -182,7 +183,6 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
             print(f"❌ Error tempel foto: {str(e)}")
     else:
         print("⚠️ Tidak ada foto yang diberikan.")
-
 
     os.makedirs("output", exist_ok=True)
     output_filename = f"{nama_peserta.replace(' ', '_')}_{jenis}.pdf"
