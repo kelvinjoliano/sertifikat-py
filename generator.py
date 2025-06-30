@@ -87,19 +87,19 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
             "nomor": (320, 145),
             "nama_h1_y": 345,
             "tanggal": (610, 455),
-            "nama_h2": (570, 505)
+            "nama_h2": (565, 503)
         },
         "BFA": {
             "nomor": (320, 145),
             "nama_h1_y": 345,
             "tanggal": (610, 460),
-            "nama_h2": (600, 508)
+            "nama_h2": (580, 503)
         },
         "BFF": {
             "nomor": (320, 145),
             "nama_h1_y": 345,
             "tanggal": (610, 455),
-            "nama_h2": (570, 505)
+            "nama_h2": (565, 503)
         }
     }
 
@@ -165,12 +165,12 @@ def generate_sertifikat(nama_peserta, nomor_sertifikat, tanggal, jenis_pelatihan
             if response.status_code == 200:
                 img_stream = BytesIO(response.content)
 
-                img_width, img_height = 120, 120
+                img_width, img_height = 80, 100
                 page_width = page2.rect.width
                 x_center = (page_width - img_width) / 2 - 40
 
                 # ⬆ Naikkan posisi dari bawah
-                y_bottom = page2.rect.height - 160
+                y_bottom = page2.rect.height - 140
 
                 img_rect = fitz.Rect(x_center, y_bottom, x_center + img_width, y_bottom + img_height)
                 page2.insert_image(img_rect, stream=img_stream)
